@@ -1,23 +1,13 @@
 import express from "express";
 import cors from "cors";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const app = express();
-
-// 🔓 Corrige o CORS para funcionar no Render + Vercel
-app.use(
-  cors({
-    origin: "*", // libera todas as origens
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
+app.use(cors());
 app.use(express.json());
 
-// 🧠 Inicializa o cliente da OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// 🧠 Inicializa Gemini com a chave
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // 🔹 Dados simulados (mock)
 const MOCK = [
@@ -57,41 +47,39 @@ app.post("/buscar", (req, res) => {
   res.json({ resultados: data });
 });
 
-// 🔹 Endpoint de análise (IA real)
+// 🔹 Endpoint de análise com IA Gemini
 app.post("/analise", async (req, res) => {
   try {
     const { textos = [] } = req.body || {};
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ resumo: "❌ API Key da OpenAI ausente." });
-    }
-
     const prompt = `
-Analise os seguintes textos de anúncios e me diga:
-1️⃣ Quais padrões e gatilhos são usados (ex: urgência, prova social, promessa, preço).
-2️⃣ O que eles têm em comum.
-3️⃣ Sugestões práticas para melhorar os anúncios e aumentar conversão.
+Analise os seguintes textos de anúncios e responda de forma clara:
+1️⃣ Quais gatilhos mentais aparecem (ex: urgência, autoridade, prova social)?
+2️⃣ Quais padrões em comum você nota?
+3️⃣ Quais melhorias poderiam aumentar conversão?
 
 Textos:
 ${textos.join("\n\n")}
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // modelo mais leve e rápido
-      messages: [
-        { role: "system", content: "Você é um especialista em copywriting e análise de anúncios." },
-        { role: "user", content: prompt },
-      ],
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
 
-    const resumo = completion.choices[0].message.content;
-    res.json({ resumo });
+    const resposta =
+      result.response.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Não foi possível gerar análise no momento.";
+
+    res.json({ resumo: resposta });
   } catch (error) {
     console.error("Erro ao gerar análise IA:", error);
-    res.status(500).json({ resumo: "❌ Erro ao processar análise com a IA." });
+    res
+      .status(500)
+      .json({ resumo: "❌ Erro ao processar análise com a IA (Gemini)." });
   }
 });
 
-// 🔹 Inicialização do servidor
-const PORT = process.env.PORT || 10000; // Render usa portas altas (ex: 10000)
-app.listen(PORT, () => console.log(`✅ TrendSpy API rodando na porta ${PORT}`));
+// 🔹 Inicialização
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () =>
+  console.log(`✅ TrendSpy API rodando na porta ${PORT}`)
+);
