@@ -1,9 +1,15 @@
 import express from "express";
 import cors from "cors";
+import OpenAI from "openai";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// 🧠 Inicializa o cliente da OpenAI (Render lê a variável OPENAI_API_KEY automaticamente)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // 🔹 Dados simulados (mock)
 const MOCK = [
@@ -30,33 +36,52 @@ const MOCK = [
     ultimaAparicao: "2025-10-23",
     textoAnuncio: "Modelagem imediata. Frete grátis hoje.",
     linkOrigem: "https://shopee.com.br",
-  }
+  },
 ];
 
 // 🔹 Endpoint de busca
 app.post("/buscar", (req, res) => {
   const { termo = "" } = req.body || {};
   const termoNorm = termo.toLowerCase();
-  const data = MOCK.filter(x => x.termo.includes(termoNorm) || termoNorm === "");
+  const data = MOCK.filter(
+    (x) => x.termo.includes(termoNorm) || termoNorm === ""
+  );
   res.json({ resultados: data });
 });
-// 🔹 Endpoint de análise (simulado por enquanto)
-app.post("/analise", (req, res) => {
-  const { textos = [] } = req.body || {};
-  const resumo = `
-Padrões detectados:
-• Promessa rápida + benefício direto.
-• Preço abaixo de R$100 e frete grátis.
-• Criativos com antes/depois e foco no corpo.
 
-Sugestões:
-• Use gancho emocional no 1º segundo.
-• CTA com urgência ("Hoje", "Últimas unidades").
-  `.trim();
-  res.json({ resumo });
+// 🔹 Endpoint de análise (IA real)
+app.post("/analise", async (req, res) => {
+  try {
+    const { textos = [] } = req.body || {};
+
+    // Prompt enviado à OpenAI
+    const prompt = `
+Analise os seguintes textos de anúncios e me diga:
+1️⃣ Quais padrões e gatilhos são usados (ex: urgência, prova social, promessa, preço).
+2️⃣ O que eles têm em comum.
+3️⃣ Sugestões práticas para melhorar os anúncios e aumentar conversão.
+
+Textos:
+${textos.join("\n\n")}
+`;
+
+    // 🔹 Chamada à API da OpenAI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    // 🔹 Envia o resultado ao front
+    const resumo = completion.choices[0].message.content;
+    res.json({ resumo });
+  } catch (error) {
+    console.error("Erro ao gerar análise IA:", error);
+    res
+      .status(500)
+      .json({ resumo: "❌ Erro ao processar análise com a IA." });
+  }
 });
 
-
-// 🔹 Inicialização
+// 🔹 Inicialização do servidor
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`✅ TrendSpy API rodando na porta ${PORT}`));
