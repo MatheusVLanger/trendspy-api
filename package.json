@@ -1,17 +1,18 @@
 {
-  "name": "api",
+  "name": "trendspy-api",
   "version": "1.0.0",
   "description": "Backend da API TrendSpy",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "node index.js"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "Matheus",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^4.18.2",
+    "openai": "^4.0.0"
   }
 }
