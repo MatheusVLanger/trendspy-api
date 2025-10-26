@@ -3,10 +3,18 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(cors());
+
+// 🔓 Corrige o CORS para funcionar no Render + Vercel
+app.use(
+  cors({
+    origin: "*", // libera todas as origens
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 app.use(express.json());
 
-// 🧠 Inicializa o cliente da OpenAI (Render lê a variável OPENAI_API_KEY automaticamente)
+// 🧠 Inicializa o cliente da OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -54,7 +62,10 @@ app.post("/analise", async (req, res) => {
   try {
     const { textos = [] } = req.body || {};
 
-    // Prompt enviado à OpenAI
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ resumo: "❌ API Key da OpenAI ausente." });
+    }
+
     const prompt = `
 Analise os seguintes textos de anúncios e me diga:
 1️⃣ Quais padrões e gatilhos são usados (ex: urgência, prova social, promessa, preço).
@@ -65,23 +76,22 @@ Textos:
 ${textos.join("\n\n")}
 `;
 
-    // 🔹 Chamada à API da OpenAI
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
+      model: "gpt-4o-mini", // modelo mais leve e rápido
+      messages: [
+        { role: "system", content: "Você é um especialista em copywriting e análise de anúncios." },
+        { role: "user", content: prompt },
+      ],
     });
 
-    // 🔹 Envia o resultado ao front
     const resumo = completion.choices[0].message.content;
     res.json({ resumo });
   } catch (error) {
     console.error("Erro ao gerar análise IA:", error);
-    res
-      .status(500)
-      .json({ resumo: "❌ Erro ao processar análise com a IA." });
+    res.status(500).json({ resumo: "❌ Erro ao processar análise com a IA." });
   }
 });
 
 // 🔹 Inicialização do servidor
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000; // Render usa portas altas (ex: 10000)
 app.listen(PORT, () => console.log(`✅ TrendSpy API rodando na porta ${PORT}`));
